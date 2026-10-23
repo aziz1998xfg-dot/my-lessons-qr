@@ -1,36 +1,19 @@
 from flask import Flask, request, render_template_string, redirect, send_from_directory
-import qrcode
-import socket
 import os
 
 app = Flask(__name__)
 
-# Setup secure directory to hold uploaded files from your phone
+# مجلد الحفظ التلقائي للمستندات
 UPLOAD_FOLDER = 'uploaded_files'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# ==========================================
-# 🔐 إعدادات كلمات المرور والتحكم (غيرها كما تشاء)
-# ==========================================
-STUDENT_PASSWORD = "1234"      # باسوورد الطلاب (عرض فقط)
-TEACHER_PASSWORD = "admin"  # باسوورد الأستاذ (صلاحية الرفع والتعديل)
-# ==========================================
+# 🔐 كلمات المرور
+STUDENT_PASSWORD = "1234"      # باسوورد الطلاب
+TEACHER_PASSWORD = "admin"     # باسوورد الأستاذ
 
-
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(('8.8.8.8', 1))
-        IP = s.getsockname()[0]
-    except Exception:
-        IP = '127.0.0.1'
-    finally:
-        s.close()
-    return IP
-
-SERVER_URL = f"http://{get_local_ip()}:5000/view"
-
+# 1. صفحة الدخول الموحدة التي تفتح عبر الرابط مباشرة
+@app.route('/')
 @app.route('/view')
 def login_page():
     html_login = """
@@ -38,9 +21,9 @@ def login_page():
     <html lang="ar" dir="rtl">
     <head>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🔒 نظام الملفات الآمن</title>
+        <title>📚 منصة الدروس الخصوصية الآمنة</title>
         <style>
-            body { font-family: sans-serif; text-align: center; margin-top: 100px; background: #f0f2f5; }
+            body { font-family: sans-serif; text-align: center; margin-top: 80px; background: #f0f2f5; }
             .box { background: white; padding: 40px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 400px; }
             input, button { padding: 12px; font-size: 16px; margin: 10px 0; border-radius: 6px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; }
             button { background: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; }
@@ -48,86 +31,120 @@ def login_page():
     </head>
     <body>
         <div class="box">
-            <h2>🔒 محتوى محمي</h2>
+            <h2>📚 بوابة الدخول للمنصة</h2>
+            <p>يرجى إدخال رمز المرور الخاص بك للدخول.</p>
             <form method="POST" action="/verify">
-                <input type="password" name="password" placeholder="كلمة المرور" required><br>
-                <button type="submit">دخول للملفات</button>
+                <input type="password" name="password" placeholder="أدخل رمز المرور هنا" required><br>
+                <button type="submit">تسجيل الدخول</button>
             </form>
-            {% if error %}<p style="color:red;">❌ كلمة المرور خاطئة!</p>{% endif %}
+            {% if error %}<p style="color:red; font-weight:bold;">❌ رمز المرور غير صحيح!</p>{% endif %}
         </div>
     </body>
     </html>
     """
     return render_template_string(html_login, error=request.args.get('error'))
 
+# 2. التحقق من الصلاحيات
 @app.route('/verify', methods=['POST'])
 def verify():
-    if request.form.get('password') == PASSWORD:
-        return redirect('/dashboard')
+    pwd = request.form.get('password')
+    if pwd == TEACHER_PASSWORD:
+        return redirect('/teacher_dashboard')
+    elif pwd == STUDENT_PASSWORD:
+        return redirect('/student_dashboard')
     return redirect('/view?error=1')
 
-@app.route('/dashboard')
-def dashboard():
+# 3. لوحة الطلاب
+@app.route('/student_dashboard')
+def student_dashboard():
     files = os.listdir(app.config['UPLOAD_FOLDER'])
-    html_dashboard = """
+    html_student = """
     <!DOCTYPE html>
     <html lang="ar" dir="rtl">
     <head>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>📂 لوحة ملفاتي</title>
+        <title>📂 مكتبة الدروس</title>
         <style>
             body { font-family: sans-serif; background: #f8f9fa; padding: 20px; }
             .container { max-width: 600px; margin: 0 auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-            .upload-section { background: #e9ecef; padding: 15px; border-radius: 6px; margin-bottom: 20px; text-align: center; }
-            .file-link { display: block; padding: 12px; background: #fff; border: 1px solid #ddd; margin: 8px 0; border-radius: 6px; text-decoration: none; color: #007bff; font-weight: bold; }
-            .file-link:hover { background: #f0f4f8; }
-            input[type="file"] { margin-bottom: 10px; }
+            .file-link { display: block; padding: 15px; background: #fff; border: 1px solid #ddd; margin: 8px 0; border-radius: 6px; text-decoration: none; color: #17a2b8; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h2>📂 مستودع الملفات الذكي</h2>
-            
-            <div class="upload-section">
-                <h3>📤 رفع ملف جديد من ذاكرة هذا الهاتف:</h3>
-                <form method="POST" action="/upload" enctype="multipart/form-data">
-                    <input type="file" name="file" required><br>
-                    <button type="submit" style="padding:10px 20px; background:#28a745; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">ابدأ الرفع المباشر</button>
-                </form>
-            </div>
-
-            <h3>📥 الملفات المخزنة المتاحة حالياً:</h3>
+            <h2>🎓 لوحة الطلاب</h2>
+            <hr>
+            <h3>📥 الدروس والمستندات المتوفرة:</h3>
             {% if not files %}
-                <p style="color: #666;">لا توجد ملفات مرفوعة حالياً. استخدم الزر أعلاه لإضافة أول ملف من جوالك.</p>
+                <p style="color: #666;">لا توجد دروس مرفوعة حالياً.</p>
             {% endif %}
             {% for file in files %}
-                <a href="/download/{{ file }}" target="_blank" class="file-link">📄 {{ file }}</a>
+                <a href="/download/{{ file }}" target="_blank" class="file-link">📖 تحميل الدرس: {{ file }}</a>
             {% endfor %}
         </div>
     </body>
     </html>
     """
-    return render_template_string(html_dashboard, files=files)
+    return render_template_string(html_student, files=files)
+
+# 4. لوحة الأستاذ السرية
+@app.route('/teacher_dashboard')
+def teacher_dashboard():
+    files = os.listdir(app.config['UPLOAD_FOLDER'])
+    html_teacher = """
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>⚙️ لوحة تحكم الأستاذ</title>
+        <style>
+            body { font-family: sans-serif; background: #f4f6f9; padding: 20px; }
+            .container { max-width: 600px; margin: 0 auto; background: white; padding: 25px; border-radius: 10px; }
+            .upload-box { background: #e9ecef; padding: 15px; border-radius: 6px; text-align: center; margin-bottom:20px; }
+            .file-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>⚙️ لوحة تحكم الأستاذ</h2>
+            <div class="upload-box">
+                <form method="POST" action="/upload" enctype="multipart/form-data">
+                    <input type="file" name="file" required><br><br>
+                    <button type="submit" style="padding:10px 20px; background:#28a745; color:#fff; border:none; border-radius:4px;">نشر الدرس الآن</button>
+                </form>
+            </div>
+            <h3>📋 الدروس المنشورة:</h3>
+            {% for file in files %}
+                <div class="file-item">
+                    <span>📄 {{ file }}</span>
+                    <a href="/delete/{{ file }}" style="color:red;">❌ حذف</a>
+                </div>
+            {% endfor %}
+        </div>
+    </body>
+    </html>
+    """
+    return render_template_string(html_teacher, files=files)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files: return redirect('/dashboard')
+    if 'file' not in request.files: return redirect('/teacher_dashboard')
     file = request.files['file']
-    if file.filename == '': return redirect('/dashboard')
+    if file.filename == '': return redirect('/teacher_dashboard')
     file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
-    return redirect('/dashboard')
+    return redirect('/teacher_dashboard')
+
+@app.route('/delete/<filename>')
+def delete_file(filename):
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(file_path): os.remove(file_path)
+    return redirect('/teacher_dashboard')
 
 @app.route('/download/<filename>')
 def download_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+# الربط الديناميكي الإجباري لخوادم الإنترنت العالمية ⚠️
 if __name__ == '__main__':
-    if os.path.exists("my_secure_permanent_qr.png"):
-        os.remove("my_secure_permanent_qr.png")
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
-    qr.add_data(SERVER_URL)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    img.save("my_secure_permanent_qr.png")
-    print(f"\n[+] SUCCESS: New QR code generated targeting: {SERVER_URL}")
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
