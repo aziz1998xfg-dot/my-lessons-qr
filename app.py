@@ -10,7 +10,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # 🔐 كلمات المرور
 STUDENT_PASSWORD = "1234"      # باسوورد الطلاب
-TEACHER_PASSWORD = "admin"     # باسوورد الأستاذ
+TEACHER_PASSWORD = "zedzed"     # باسوورد الأستاذ
 
 # 1. صفحة الدخول الموحدة التي تفتح عبر الرابط مباشرة
 @app.route('/')
